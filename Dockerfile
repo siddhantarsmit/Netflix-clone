@@ -1,17 +1,32 @@
-FROM node:16.17.0-alpine as builder
-WORKDIR /app
-COPY ./package.json .
-COPY ./yarn.lock .
-RUN yarn install
-COPY . .
-ARG TMDB_V3_API_KEY
-ENV VITE_APP_TMDB_V3_API_KEY=${TMDB_V3_API_KEY}
-ENV VITE_APP_API_ENDPOINT_URL="https://api.themoviedb.org/3"
-RUN yarn build
+# ---------- Build stage ----------
+FROM node:18-alpine AS builder
 
+WORKDIR /app
+
+# Install dependencies first (better caching)
+COPY package*.json ./
+RUN npm ci
+
+# Copy source
+COPY . .
+
+# Build
+RUN npm run build
+
+
+# ---------- Runtime stage ----------
 FROM nginx:stable-alpine
-WORKDIR /usr/share/nginx/html
-RUN rm -rf ./*
-COPY --from=builder /app/dist .
+
+# Remove default config if needed (optional)
+# RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy build output
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Security: run as non-root where possible
 EXPOSE 80
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
+
+HEALTHCHECK --interval=30s --timeout=5s \
+  CMD wget -qO- http://localhost:80 || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]
