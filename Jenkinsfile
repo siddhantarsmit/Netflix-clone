@@ -32,8 +32,6 @@ pipeline {
       steps {
         sh '''
           IMAGE_TAG=$(git rev-parse --short HEAD)
-          echo "IMAGE_TAG=$IMAGE_TAG" > image.env
-
           docker build -t netflix-clone:$IMAGE_TAG .
           docker tag netflix-clone:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
         '''
@@ -43,7 +41,7 @@ pipeline {
     stage('Push Image to ECR') {
       steps {
         sh '''
-          source image.env
+          IMAGE_TAG=$(git rev-parse --short HEAD)
 
           aws ecr get-login-password --region $AWS_REGION \
           | docker login --username AWS --password-stdin $ECR_REPO
@@ -56,7 +54,7 @@ pipeline {
     stage('Deploy to EKS') {
       steps {
         sh '''
-          source image.env
+          IMAGE_TAG=$(git rev-parse --short HEAD)
 
           aws eks update-kubeconfig \
             --region $AWS_REGION \
@@ -70,6 +68,7 @@ pipeline {
         '''
       }
     }
+
   }
 
   post {
